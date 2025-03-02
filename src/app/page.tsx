@@ -1,11 +1,9 @@
-// page.tsx
-
 "use client";
 
 import React, { useEffect, useRef, useState, FormEvent } from "react";
 import { Context } from "@/components/Context";
 import Header from "@/components/Header";
-import Chat from "@/components/Chat";
+import Chat, { ContextInfo } from "@/components/Chat";
 import { useChat } from "ai/react";
 import InstructionModal from "./components/InstructionModal";
 import { AiFillGithub, AiOutlineInfoCircle } from "react-icons/ai";
@@ -14,8 +12,16 @@ const Page: React.FC = () => {
   const [gotMessages, setGotMessages] = useState(false);
   const [context, setContext] = useState<string[] | null>(null);
   const [isModalOpen, setModalOpen] = useState(false);
+  const [contextSelections, setContextSelections] = useState<ContextInfo>({});
 
-  const { messages, input, handleInputChange, handleSubmit } = useChat({
+  // Initialize the chat with useChat hook
+  const {
+    messages,
+    input,
+    handleInputChange,
+    handleSubmit: aiHandleSubmit,
+    append,
+  } = useChat({
     onFinish: async () => {
       setGotMessages(true);
     },
@@ -23,9 +29,66 @@ const Page: React.FC = () => {
 
   const prevMessagesLengthRef = useRef(messages.length);
 
-  const handleMessageSubmit = async (e: FormEvent<HTMLFormElement>) => {
+  // Handle context selections from the Context component
+  const handleContextSelection = (type: string, value: string) => {
+    setContextSelections((prev) => ({
+      ...prev,
+      [type]: value,
+    }));
+  };
+
+  // Helper function to generate context message text
+  const getContextMessage = (contextInfo?: ContextInfo) => {
+    if (!contextInfo) return "";
+
+    let contextMessage = "";
+
+    if (contextInfo.weather) {
+      contextMessage += `Weather: ${contextInfo.weather} `;
+    }
+
+    if (contextInfo.activity) {
+      contextMessage += `Activity: ${contextInfo.activity}`;
+    }
+
+    return contextMessage.trim();
+  };
+
+  // Custom submit handler that includes context information
+  const handleMessageSubmit = async (
+    e: FormEvent<HTMLFormElement>,
+    contextInfo?: ContextInfo
+  ) => {
     e.preventDefault();
-    handleSubmit(e);
+
+    // Get the context message from the preview
+    const contextMessage = getContextMessage(contextInfo);
+
+    // If there's no input and no context, don't send anything
+    if (!input.trim() && !contextMessage) return;
+
+    // Build the full message
+    let fullMessage = "";
+
+    // If user typed something, include it
+    if (input.trim()) {
+      fullMessage = input.trim();
+
+      // Add context as a separate line if both input and context exist
+      if (contextMessage) {
+        fullMessage += `\n${contextMessage}`;
+      }
+    } else {
+      // Otherwise just use the context message
+      fullMessage = contextMessage;
+    }
+
+    // Add the message to the UI and send to the AI
+    append({
+      role: "user",
+      content: fullMessage,
+    });
+
     setContext(null);
     setGotMessages(false);
   };
@@ -49,7 +112,7 @@ const Page: React.FC = () => {
   }, [messages, gotMessages]);
 
   return (
-    <div className="flex flex-col justify-between h-screen bg-gray-800 p-2 mx-auto max-w-full">
+    <div className="flex flex-col justify-between h-screen bg-[#C0F1ED] p-2 mx-auto max-w-full">
       <Header className="my-5" />
       <a
         className="fixed left-4 top-4 md:right-14 md:top-6 text-xl text-white"
@@ -57,7 +120,6 @@ const Page: React.FC = () => {
       >
         <img src="https://vercel.com/button" alt="Deploy with Vercel" />
       </a>
-
       <button
         onClick={() => {
           window.open(
@@ -87,13 +149,18 @@ const Page: React.FC = () => {
           handleInputChange={handleInputChange}
           handleMessageSubmit={handleMessageSubmit}
           messages={messages}
+          contextSelections={contextSelections}
         />
-        <div className="absolute transform translate-x-full transition-transform duration-500 ease-in-out right-0 w-2/3 h-full bg-gray-700 overflow-y-auto lg:static lg:translate-x-0 lg:w-2/5 lg:mx-2 rounded-lg">
-          <Context className="" selected={context} />
+        <div className="absolute transform translate-x-full transition-transform duration-500 ease-in-out right-0 w-2/3 h-full bg-[#4FACAD] overflow-y-auto lg:static lg:translate-x-0 lg:w-2/5 lg:mx-2 rounded-lg">
+          <Context
+            className=""
+            selected={context}
+            onSelectionChange={handleContextSelection}
+          />
         </div>
         <button
           type="button"
-          className="absolute left-20 transform -translate-x-12 bg-gray-800 text-white rounded-l py-2 px-4 lg:hidden"
+          className="absolute left-20 transform -translate-x-12 bg-[#4FACAD] text-white rounded-l py-2 px-4 lg:hidden"
           onClick={(e) => {
             e.currentTarget.parentElement
               ?.querySelector(".transform")
